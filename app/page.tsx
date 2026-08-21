@@ -8,6 +8,7 @@ import {
   Settings, LogOut, Search, Mail, Bell, Moon, Sun, 
   Hexagon, Apple, Plus, RefreshCw, TrendingUp, TrendingDown, Coins
 } from 'lucide-react';
+import { setupDatabase, getBarang, tambahBarang } from './actions';
 
 // --- WARNA UTAMA ---
 const PRIMARY_GREEN = "#0c6b45";
@@ -301,30 +302,106 @@ function ViewPenjualan() {
 }
 
 function ViewBarang() {
+  const [dataBarang, setDataBarang] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Fungsi untuk mengambil data saat menu Barang dibuka
+  const loadData = async () => {
+    const data = await getBarang();
+    setDataBarang(data);
+  };
+
+  useEffect(() => {
+    // Jalankan setup database (buat tabel jika belum ada) lalu ambil data
+    setupDatabase().then(() => loadData());
+  }, []);
+
+  // Fungsi saat tombol tambah ditekan
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    setIsLoading(true);
+    
+    const formData = new FormData(e.currentTarget);
+    await tambahBarang(formData);
+    
+    // Reset form dan reload data
+    e.currentTarget.reset();
+    await loadData();
+    setIsLoading(false);
+  };
+
   return (
     <div>
       <h1 className="text-2xl font-bold mb-8">Database Barang</h1>
       <div className="flex flex-col lg:flex-row gap-6">
+        
+        {/* Form Tambah Item */}
         <div className="w-full lg:w-1/3 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
           <h3 className="font-bold mb-6">Tambah Item</h3>
-          <div className="space-y-4 text-sm">
+          <form onSubmit={handleSubmit} className="space-y-4 text-sm">
             <div>
               <label className="block text-gray-500 mb-1">Nama Barang</label>
-              <input type="text" className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:border-[#0c6b45]" />
+              <input 
+                type="text" 
+                name="nama"
+                required
+                className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:border-[#0c6b45]" 
+              />
             </div>
             <div>
               <label className="block text-gray-500 mb-1">Harga (Rp)</label>
-              <input type="number" className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:border-[#0c6b45]" />
+              <input 
+                type="number" 
+                name="harga"
+                required
+                className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5 focus:outline-none focus:border-[#0c6b45]" 
+              />
             </div>
-            <button className="w-full mt-2 bg-[#0c6b45] text-white py-3 rounded-lg font-semibold hover:bg-[#095536] transition">
-              Tambah ke Database
+            <button 
+              type="submit"
+              disabled={isLoading}
+              className={`w-full mt-2 text-white py-3 rounded-lg font-semibold transition ${isLoading ? 'bg-gray-400' : 'bg-[#0c6b45] hover:bg-[#095536]'}`}
+            >
+              {isLoading ? 'Menyimpan...' : 'Tambah ke Database'}
             </button>
-          </div>
+          </form>
         </div>
+
+        {/* Tabel Data Barang */}
         <div className="w-full lg:w-2/3 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
           <h3 className="font-bold mb-6">Daftar Harga</h3>
-          <Table headers={['ID', 'NAMA BARANG', 'HARGA', 'AKSI']} />
+          <div className="w-full overflow-x-auto">
+            <table className="w-full text-left text-sm text-gray-500 dark:text-gray-400">
+              <thead className="text-xs text-gray-400 uppercase bg-transparent border-b border-gray-100 dark:border-gray-700">
+                <tr>
+                  <th className="pb-3 font-semibold">ID</th>
+                  <th className="pb-3 font-semibold">NAMA BARANG</th>
+                  <th className="pb-3 font-semibold">HARGA</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dataBarang.length === 0 ? (
+                  <tr>
+                    <td colSpan={3} className="py-8 text-center text-gray-400">
+                      Belum ada data tersedia.
+                    </td>
+                  </tr>
+                ) : (
+                  dataBarang.map((item) => (
+                    <tr key={item.id} className="border-b border-gray-50 dark:border-gray-700/50 last:border-0">
+                      <td className="py-3">#{item.id}</td>
+                      <td className="py-3 font-medium text-gray-800 dark:text-gray-200">{item.nama}</td>
+                      <td className="py-3 text-[#0c6b45] dark:text-green-400 font-semibold">
+                        Rp {new Intl.NumberFormat('id-ID').format(item.harga)}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
+
       </div>
     </div>
   );
