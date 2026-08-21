@@ -7,7 +7,7 @@ import {
   LayoutDashboard, ShoppingCart, Package, Wallet, 
   Settings, LogOut, Search, Mail, Bell, Moon, Sun, 
   Hexagon, Apple, Plus, RefreshCw, TrendingUp, TrendingDown, Coins,
-  Edit, Trash2, Send
+  Edit, Trash2, Send, FileText, Download // <-- Tambahan icon FileText & Download
 } from 'lucide-react';
 
 const PRIMARY_GREEN = "#0c6b45";
@@ -67,11 +67,13 @@ export default function App() {
     );
   }
 
+  // --- MENU DITAMBAHKAN "INVOICE" ---
   const menuItems = [
     { id: 'Dashboard', icon: <LayoutDashboard size={20} /> },
     { id: 'Penjualan', icon: <ShoppingCart size={20} /> },
     { id: 'Barang', icon: <Package size={20} /> },
     { id: 'Keuangan', icon: <Wallet size={20} /> },
+    { id: 'Invoice', icon: <FileText size={20} /> },
   ];
 
   return (
@@ -98,7 +100,7 @@ export default function App() {
         <header className="h-20 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm flex items-center justify-between px-8 z-10 border-b border-gray-200 dark:border-gray-700">
           <div className="relative w-96">
             <Search size={18} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input type="text" placeholder="Search data..." className="w-full pl-10 pr-12 py-2.5 bg-white dark:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-700 focus:outline-none focus:border-[#0c6b45] text-sm" />
+            <input type="text" placeholder="Search data global..." className="w-full pl-10 pr-12 py-2.5 bg-white dark:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-700 focus:outline-none focus:border-[#0c6b45] text-sm" />
           </div>
           <div className="flex items-center gap-4">
             <button onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')} className="p-2 bg-white dark:bg-gray-800 rounded-full border border-gray-200 dark:border-gray-700 text-gray-500">
@@ -118,6 +120,7 @@ export default function App() {
               {activeTab === 'Penjualan' && <ViewPenjualan />}
               {activeTab === 'Barang' && <ViewBarang />}
               {activeTab === 'Keuangan' && <ViewKeuangan />}
+              {activeTab === 'Invoice' && <ViewInvoice />}
             </motion.div>
           </AnimatePresence>
         </main>
@@ -202,6 +205,7 @@ function ViewPenjualan() {
   const [qty, setQty] = useState(1);
   const [isFetching, setIsFetching] = useState(true);
   const [editId, setEditId] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const loadData = async () => {
     setIsFetching(true);
@@ -254,12 +258,10 @@ function ViewPenjualan() {
     };
 
     if (editId) {
-      // Perbarui Tampilan Instan (Edit)
       setDataPenjualan(dataPenjualan.map(item => item.id === editId ? { ...item, ...payload, nama_barang: barangTerpilih?.nama } : item));
       await fetch('/api/db', { method: 'PUT', body: JSON.stringify({ type: 'penjualan', id: editId, ...payload }) });
       setEditId(null);
     } else {
-      // Perbarui Tampilan Instan (Tambah)
       const newData = { id: '...', ...payload, nama_barang: barangTerpilih ? barangTerpilih.nama : 'Unknown' };
       setDataPenjualan([newData, ...dataPenjualan]);
       await fetch('/api/db', { method: 'POST', body: JSON.stringify({ type: 'penjualan', ...payload }) });
@@ -269,6 +271,12 @@ function ViewPenjualan() {
     e.currentTarget.reset();
     setSelectedBarangId(""); setHargaSatuan(0); setQty(1);
   };
+
+  const filteredPenjualan = dataPenjualan.filter(item => 
+    item.pembeli?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    item.nama_barang?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    new Date(item.tanggal).toLocaleDateString('id-ID').includes(searchQuery)
+  );
 
   return (
     <div>
@@ -298,7 +306,13 @@ function ViewPenjualan() {
           </form>
         </div>
         <div className="w-full lg:w-2/3 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-          <h3 className="font-bold mb-6">Riwayat Penjualan</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <h3 className="font-bold">Riwayat Penjualan</h3>
+            <div className="relative w-full sm:w-64">
+              <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input type="text" placeholder="Cari transaksi..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:border-[#0c6b45]" />
+            </div>
+          </div>
           <div className="w-full overflow-x-auto">
             <table className="w-full text-left text-sm text-gray-500 dark:text-gray-400">
               <thead className="text-xs text-gray-400 uppercase border-b border-gray-100 dark:border-gray-700">
@@ -307,11 +321,11 @@ function ViewPenjualan() {
               <tbody>
                 {isFetching ? (
                   <tr><td colSpan={6} className="py-8 text-center text-gray-400 animate-pulse">Sedang memuat data...</td></tr>
-                ) : dataPenjualan.length === 0 ? (
-                   <tr><td colSpan={6} className="py-8 text-center text-gray-400">Belum ada data tersedia.</td></tr>
+                ) : filteredPenjualan.length === 0 ? (
+                   <tr><td colSpan={6} className="py-8 text-center text-gray-400">Pencarian tidak ditemukan.</td></tr>
                 ) : (
-                  dataPenjualan.map((item, i) => (
-                    <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50">
+                  filteredPenjualan.map((item, i) => (
+                    <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50 hover:bg-gray-50/50 dark:hover:bg-gray-800/50">
                       <td className="py-3">{new Date(item.tanggal).toLocaleDateString('id-ID')}</td>
                       <td className="py-3 font-medium text-gray-800 dark:text-gray-200">{item.pembeli}</td>
                       <td className="py-3">{item.nama_barang}</td><td className="py-3">{item.qty}</td>
@@ -336,6 +350,7 @@ function ViewBarang() {
   const [dataBarang, setDataBarang] = useState<any[]>([]);
   const [isFetching, setIsFetching] = useState(true);
   const [editId, setEditId] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const loadData = async () => {
     setIsFetching(true);
@@ -378,6 +393,8 @@ function ViewBarang() {
     e.currentTarget.reset();
   };
 
+  const filteredBarang = dataBarang.filter(item => item.nama?.toLowerCase().includes(searchQuery.toLowerCase()));
+
   return (
     <div>
       <h1 className="text-2xl font-bold mb-8">Database Barang</h1>
@@ -394,7 +411,13 @@ function ViewBarang() {
           </form>
         </div>
         <div className="w-full lg:w-2/3 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-          <h3 className="font-bold mb-6">Daftar Harga</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <h3 className="font-bold">Daftar Harga</h3>
+            <div className="relative w-full sm:w-64">
+              <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input type="text" placeholder="Cari nama barang..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:border-[#0c6b45]" />
+            </div>
+          </div>
           <div className="w-full overflow-x-auto">
             <table className="w-full text-left text-sm text-gray-500 dark:text-gray-400">
               <thead className="text-xs text-gray-400 uppercase border-b border-gray-100 dark:border-gray-700">
@@ -403,11 +426,11 @@ function ViewBarang() {
               <tbody>
                 {isFetching ? (
                   <tr><td colSpan={4} className="py-8 text-center text-gray-400 animate-pulse">Sedang memuat data...</td></tr>
-                ) : dataBarang.length === 0 ? (
-                  <tr><td colSpan={4} className="py-8 text-center text-gray-400">Belum ada data tersedia.</td></tr>
+                ) : filteredBarang.length === 0 ? (
+                  <tr><td colSpan={4} className="py-8 text-center text-gray-400">Pencarian tidak ditemukan.</td></tr>
                 ) : (
-                  dataBarang.map((item, i) => (
-                    <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50">
+                  filteredBarang.map((item, i) => (
+                    <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50 hover:bg-gray-50/50 dark:hover:bg-gray-800/50">
                       <td className="py-3">{item.id === '...' ? '...' : `#${item.id}`}</td>
                       <td className="py-3 font-medium text-gray-800 dark:text-gray-200">{item.nama}</td>
                       <td className="py-3 text-[#0c6b45] dark:text-green-400 font-semibold">{formatRp(item.harga)}</td>
@@ -431,6 +454,7 @@ function ViewKeuangan() {
   const [dataKeuangan, setDataKeuangan] = useState<any[]>([]);
   const [isFetching, setIsFetching] = useState(true);
   const [editId, setEditId] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
 
   const loadData = async () => {
     setIsFetching(true);
@@ -460,11 +484,7 @@ function ViewKeuangan() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    const payload = {
-      tipe: formData.get('tipe') as string,
-      nominal: Number(formData.get('nominal')),
-      keterangan: formData.get('keterangan') as string
-    };
+    const payload = { tipe: formData.get('tipe') as string, nominal: Number(formData.get('nominal')), keterangan: formData.get('keterangan') as string };
 
     if(editId) {
       setDataKeuangan(dataKeuangan.map(k => k.id === editId ? { ...k, ...payload } : k));
@@ -477,6 +497,10 @@ function ViewKeuangan() {
     }
     e.currentTarget.reset();
   };
+
+  const filteredKeuangan = dataKeuangan.filter(item => 
+    item.keterangan?.toLowerCase().includes(searchQuery.toLowerCase()) || item.tipe?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div>
@@ -501,7 +525,13 @@ function ViewKeuangan() {
           </form>
         </div>
         <div className="w-full lg:w-2/3 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-          <h3 className="font-bold mb-6">Buku Kas</h3>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <h3 className="font-bold">Buku Kas</h3>
+            <div className="relative w-full sm:w-64">
+              <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+              <input type="text" placeholder="Cari keterangan / tipe..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:border-[#0c6b45]" />
+            </div>
+          </div>
           <div className="w-full overflow-x-auto">
             <table className="w-full text-left text-sm text-gray-500 dark:text-gray-400">
               <thead className="text-xs text-gray-400 uppercase border-b border-gray-100 dark:border-gray-700">
@@ -510,11 +540,11 @@ function ViewKeuangan() {
               <tbody>
                 {isFetching ? (
                   <tr><td colSpan={5} className="py-8 text-center text-gray-400 animate-pulse">Sedang memuat data...</td></tr>
-                ) : dataKeuangan.length === 0 ? (
-                  <tr><td colSpan={5} className="py-8 text-center text-gray-400">Belum ada data tersedia.</td></tr>
+                ) : filteredKeuangan.length === 0 ? (
+                  <tr><td colSpan={5} className="py-8 text-center text-gray-400">Pencarian tidak ditemukan.</td></tr>
                 ) : (
-                  dataKeuangan.map((item, i) => (
-                    <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50">
+                  filteredKeuangan.map((item, i) => (
+                    <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50 hover:bg-gray-50/50 dark:hover:bg-gray-800/50">
                       <td className="py-3">{item.id === '...' ? '...' : `#${item.id}`}</td>
                       <td className="py-3"><span className={`px-2 py-1 rounded text-xs font-semibold ${item.tipe === 'Pengeluaran' ? 'bg-red-100 text-red-600 dark:bg-red-900/30' : 'bg-green-100 text-green-700 dark:bg-green-900/30'}`}>{item.tipe}</span></td>
                       <td className="py-3">{item.keterangan}</td><td className="py-3 font-semibold">{formatRp(item.nominal)}</td>
@@ -525,6 +555,185 @@ function ViewKeuangan() {
               </tbody>
             </table>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ==========================================
+// VIEW INVOICE (BARU)
+// ==========================================
+function ViewInvoice() {
+  const [dataPenjualan, setDataPenjualan] = useState<any[]>([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [isFetching, setIsFetching] = useState(true);
+
+  // Mengambil data dari tabel penjualan untuk dijadikan list invoice
+  useEffect(() => {
+    const loadData = async () => {
+      setIsFetching(true);
+      const res = await fetch('/api/db?type=penjualan');
+      setDataPenjualan(await res.json());
+      setIsFetching(false);
+    };
+    loadData();
+  }, []);
+
+  // Fungsi Native Print PDF
+  const handlePrintPDF = (item: any) => {
+    const printWindow = window.open('', '', 'width=800,height=600');
+    if (!printWindow) return alert("Pop-up diblokir oleh browser. Izinkan pop-up untuk mencetak PDF.");
+
+    const hargaSatuan = item.total / item.qty;
+    
+    // Template HTML untuk bentuk Invoice
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Invoice - ${item.pembeli}</title>
+          <style>
+            body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; line-height: 1.6; }
+            .header { display: flex; justify-content: space-between; border-bottom: 2px solid #0c6b45; padding-bottom: 20px; margin-bottom: 30px; }
+            .invoice-title { font-size: 28px; font-weight: bold; color: #0c6b45; letter-spacing: 2px;}
+            .details-container { display: flex; justify-content: space-between; margin-bottom: 40px; }
+            .bill-to strong { display: block; font-size: 14px; color: #777; margin-bottom: 5px; text-transform: uppercase;}
+            .bill-to span { font-size: 18px; font-weight: bold; color: #222; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { border-bottom: 1px solid #ddd; padding: 14px 10px; text-align: left; }
+            th { background-color: #f8f9fa; color: #555; text-transform: uppercase; font-size: 12px; }
+            .total-row td { font-weight: bold; font-size: 18px; color: #0c6b45; border-top: 2px solid #0c6b45; border-bottom: none; }
+            .footer { margin-top: 50px; text-align: center; color: #888; font-size: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div>
+              <div class="invoice-title">INVOICE</div>
+              <div style="font-weight: bold; font-size: 18px;">PXLabs Official</div>
+              <div style="color: #666; font-size: 14px;">Jl. Teknologi No. 1, Jakarta Selatan</div>
+            </div>
+            <div style="text-align: right;">
+              <div style="font-size: 14px; color: #555;">Tanggal Terbit:</div>
+              <div style="font-weight: bold; margin-bottom: 10px;">${new Date(item.tanggal).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
+              <div style="font-size: 14px; color: #555;">ID Transaksi:</div>
+              <div style="font-weight: bold;">#INV-${item.id}</div>
+            </div>
+          </div>
+          
+          <div class="details-container">
+            <div class="bill-to">
+              <strong>Ditagihkan Kepada:</strong>
+              <span>${item.pembeli}</span>
+            </div>
+          </div>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Deskripsi Barang</th>
+                <th style="text-align: center;">Kuantitas</th>
+                <th style="text-align: right;">Harga Satuan</th>
+                <th style="text-align: right;">Jumlah</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>${item.nama_barang}</td>
+                <td style="text-align: center;">${item.qty}</td>
+                <td style="text-align: right;">${formatRp(hargaSatuan)}</td>
+                <td style="text-align: right;">${formatRp(item.total)}</td>
+              </tr>
+              <tr class="total-row">
+                <td colspan="3" style="text-align: right;">Total Tagihan</td>
+                <td style="text-align: right;">${formatRp(item.total)}</td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="footer">
+            <p>Terima kasih atas kepercayaan Anda berbelanja di PXLabs.</p>
+            <p>Jika ada pertanyaan terkait invoice ini, silakan hubungi admin@pxlabs.com</p>
+          </div>
+
+          <script>
+            // Otomatis memanggil dialog print/save as PDF browser setelah HTML selesai dimuat
+            window.onload = () => { 
+              window.print();
+              setTimeout(() => { window.close(); }, 500); 
+            }
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const filteredData = dataPenjualan.filter(item => 
+    item.pembeli?.toLowerCase().includes(searchQuery.toLowerCase()) || 
+    item.nama_barang?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  return (
+    <div>
+      <h1 className="text-2xl font-bold mb-8">Pembuatan Invoice</h1>
+      
+      <div className="w-full bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+          <div>
+            <h3 className="font-bold">Daftar Transaksi Selesai</h3>
+            <p className="text-sm text-gray-500">Pilih riwayat transaksi penjualan untuk diunduh sebagai PDF Invoice.</p>
+          </div>
+          <div className="relative w-full sm:w-64">
+            <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+            <input 
+              type="text" 
+              placeholder="Cari pembeli / barang..." 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:border-[#0c6b45]"
+            />
+          </div>
+        </div>
+
+        <div className="w-full overflow-x-auto">
+          <table className="w-full text-left text-sm text-gray-500 dark:text-gray-400">
+            <thead className="text-xs text-gray-400 uppercase border-b border-gray-100 dark:border-gray-700">
+              <tr>
+                <th className="pb-3">ID INV</th>
+                <th className="pb-3">TGL ORDER</th>
+                <th className="pb-3">PEMBELI</th>
+                <th className="pb-3">BARANG / ITEM</th>
+                <th className="pb-3">TOTAL</th>
+                <th className="pb-3 text-right">CETAK PDF</th>
+              </tr>
+            </thead>
+            <tbody>
+              {isFetching ? (
+                <tr><td colSpan={6} className="py-8 text-center text-gray-400 animate-pulse">Sedang memuat riwayat penjualan...</td></tr>
+              ) : filteredData.length === 0 ? (
+                 <tr><td colSpan={6} className="py-8 text-center text-gray-400">Pencarian tidak ditemukan.</td></tr>
+              ) : (
+                filteredData.map((item, i) => (
+                  <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50 hover:bg-gray-50/50 dark:hover:bg-gray-800/50">
+                    <td className="py-3 font-semibold text-gray-800 dark:text-gray-200">#INV-{item.id}</td>
+                    <td className="py-3">{new Date(item.tanggal).toLocaleDateString('id-ID')}</td>
+                    <td className="py-3 font-medium text-gray-800 dark:text-gray-200">{item.pembeli}</td>
+                    <td className="py-3">{item.nama_barang} <span className="text-gray-400 text-xs">(x{item.qty})</span></td>
+                    <td className="py-3 text-[#0c6b45] dark:text-green-400 font-semibold">{formatRp(item.total)}</td>
+                    <td className="py-3 text-right">
+                      <button 
+                        onClick={() => handlePrintPDF(item)} 
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#e8f7f0] dark:bg-green-900/30 text-[#0c6b45] dark:text-green-400 font-semibold rounded-lg hover:bg-green-100 dark:hover:bg-green-900/50 transition text-xs"
+                      >
+                        <Download size={14} /> Download PDF
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
