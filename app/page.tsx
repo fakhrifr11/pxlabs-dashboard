@@ -6,20 +6,12 @@ import { useTheme } from 'next-themes';
 import { 
   LayoutDashboard, ShoppingCart, Package, Wallet, 
   Settings, LogOut, Search, Mail, Bell, Moon, Sun, 
-  Hexagon, Apple, Plus, RefreshCw, TrendingUp, TrendingDown, Coins
+  Hexagon, Apple, Plus, RefreshCw, TrendingUp, TrendingDown, Coins,
+  Edit, Trash2, Send // <-- Tambahan Icon untuk Aksi
 } from 'lucide-react';
-
-// --- IMPORT SEMUA FUNGSI DATABASE DARI ACTIONS.TS ---
-import { 
-  setupDatabase, getBarang, tambahBarang, 
-  getPenjualan, tambahPenjualan, 
-  getKeuangan, tambahKeuangan, 
-  getDashboardStats 
-} from './actions';
 
 const PRIMARY_GREEN = "#0c6b45";
 
-// Utility function untuk format Rupiah
 const formatRp = (angka: number) => {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
 };
@@ -34,8 +26,7 @@ export default function App() {
 
   useEffect(() => {
     setMounted(true);
-    // Jalankan setup database satu kali saat aplikasi dimuat
-    setupDatabase();
+    fetch('/api/db?type=setup');
   }, []);
 
   if (!mounted) return null;
@@ -85,7 +76,6 @@ export default function App() {
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#f8f9fa] dark:bg-gray-900 font-sans text-gray-800 dark:text-gray-100 transition-colors">
-      {/* SIDEBAR */}
       <motion.aside initial={{ x: -250 }} animate={{ x: 0 }} className="w-64 bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col">
         <div className="p-6 flex items-center gap-2 text-2xl font-bold">
           <Hexagon size={32} fill={PRIMARY_GREEN} className="text-white" />
@@ -94,25 +84,16 @@ export default function App() {
         <div className="flex-1 px-4 overflow-y-auto">
           <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 mb-2 mt-4 ml-2">MENU</p>
           {menuItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => setActiveTab(item.id)}
-              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl mb-1 transition-all ${activeTab === item.id ? 'bg-[#e8f7f0] dark:bg-green-900/30 text-[#0c6b45] dark:text-green-400 font-semibold' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
-            >
+            <button key={item.id} onClick={() => setActiveTab(item.id)} className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl mb-1 transition-all ${activeTab === item.id ? 'bg-[#e8f7f0] dark:bg-green-900/30 text-[#0c6b45] dark:text-green-400 font-semibold' : 'text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
               {item.icon} {item.id}
             </button>
           ))}
           <p className="text-xs font-semibold text-gray-400 dark:text-gray-500 mb-2 mt-8 ml-2">GENERAL</p>
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700">
-            <Settings size={20} /> Settings
-          </button>
-          <button onClick={() => { setIsLoggedIn(false); setPassword(''); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20">
-            <LogOut size={20} /> Logout
-          </button>
+          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-gray-500 hover:bg-gray-50 dark:hover:bg-gray-700"><Settings size={20} /> Settings</button>
+          <button onClick={() => { setIsLoggedIn(false); setPassword(''); }} className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20"><LogOut size={20} /> Logout</button>
         </div>
       </motion.aside>
 
-      {/* MAIN CONTENT AREA */}
       <div className="flex-1 flex flex-col relative">
         <header className="h-20 bg-white/50 dark:bg-gray-900/50 backdrop-blur-sm flex items-center justify-between px-8 z-10 border-b border-gray-200 dark:border-gray-700">
           <div className="relative w-96">
@@ -125,10 +106,7 @@ export default function App() {
             </button>
             <div className="flex items-center gap-3 pl-4 border-l border-gray-200 dark:border-gray-700">
               <div className="w-10 h-10 rounded-full bg-[#0c6b45] text-white flex items-center justify-center font-bold">AP</div>
-              <div className="hidden md:block">
-                <p className="text-sm font-bold">Admin PXLabs</p>
-                <p className="text-xs text-gray-500">admin@pxlabs.com</p>
-              </div>
+              <div className="hidden md:block"><p className="text-sm font-bold">Admin PXLabs</p><p className="text-xs text-gray-500">admin@pxlabs.com</p></div>
             </div>
           </div>
         </header>
@@ -149,13 +127,33 @@ export default function App() {
 }
 
 // ==========================================
+// KOMPONEN TOMBOL AKSI
+// ==========================================
+function ActionButtons({ id }: { id: string | number }) {
+  return (
+    <div className="flex items-center justify-end gap-2">
+      <button onClick={() => alert(`Fitur Edit data ID: ${id}`)} className="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-md transition" title="Edit">
+        <Edit size={16} />
+      </button>
+      <button onClick={() => alert(`Fitur Hapus data ID: ${id}`)} className="p-1.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-md transition" title="Hapus">
+        <Trash2 size={16} />
+      </button>
+      <button onClick={() => alert(`Fitur Kirim data ID: ${id}`)} className="p-1.5 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50 rounded-md transition" title="Kirim">
+        <Send size={16} />
+      </button>
+    </div>
+  );
+}
+
+// ==========================================
 // VIEW DASHBOARD
 // ==========================================
 function ViewDashboard() {
   const [stats, setStats] = useState({ penjualan: 0, pengeluaran: 0, modalTersedia: 0, labaBersih: 0 });
 
   const loadStats = async () => {
-    const data = await getDashboardStats();
+    const res = await fetch('/api/db?type=dashboard');
+    const data = await res.json();
     setStats(data);
   };
 
@@ -169,7 +167,7 @@ function ViewDashboard() {
           <p className="text-gray-500 text-sm">Ringkasan aktivitas keuangan dan data operasional Anda.</p>
         </div>
         <button onClick={loadStats} className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-          <RefreshCw size={16} /> Sinkronisasi Ulang
+          <RefreshCw size={16} /> Sinkronisasi
         </button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -190,9 +188,7 @@ function DashboardCard({ title, amount, icon, note, isPrimary = false }: any) {
         <div className={`p-1.5 rounded-full ${isPrimary ? 'bg-white/20' : 'bg-gray-50 dark:bg-gray-700'}`}>{icon}</div>
       </div>
       <h2 className="text-2xl font-bold mb-4">{amount}</h2>
-      <div className="flex items-center gap-2 text-xs">
-        <span className={isPrimary ? 'text-green-100' : 'text-gray-400'}>{note}</span>
-      </div>
+      <div className="flex items-center gap-2 text-xs"><span className={isPrimary ? 'text-green-100' : 'text-gray-400'}>{note}</span></div>
     </motion.div>
   );
 }
@@ -204,22 +200,19 @@ function ViewPenjualan() {
   const [dataPenjualan, setDataPenjualan] = useState<any[]>([]);
   const [dataBarang, setDataBarang] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-
-  // State untuk kalkulasi form otomatis
   const [selectedBarangId, setSelectedBarangId] = useState("");
   const [hargaSatuan, setHargaSatuan] = useState(0);
   const [qty, setQty] = useState(1);
 
   const loadData = async () => {
-    const p = await getPenjualan();
-    const b = await getBarang();
-    setDataPenjualan(p);
-    setDataBarang(b);
+    const resP = await fetch('/api/db?type=penjualan');
+    const resB = await fetch('/api/db?type=barang');
+    setDataPenjualan(await resP.json());
+    setDataBarang(await resB.json());
   };
 
   useEffect(() => { loadData(); }, []);
 
-  // Saat opsi barang dipilih, otomatis cari harganya
   const handleBarangChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const id = e.target.value;
     setSelectedBarangId(id);
@@ -232,13 +225,19 @@ function ViewPenjualan() {
     setIsLoading(true);
     
     const formData = new FormData(e.currentTarget);
-    formData.append('total', (hargaSatuan * qty).toString()); // Masukkan hasil hitungan ke form
+    const payload = {
+      type: 'penjualan',
+      tanggal: formData.get('tanggal'),
+      pembeli: formData.get('pembeli'),
+      barang_id: Number(formData.get('barang_id')),
+      qty: Number(formData.get('qty')),
+      total: hargaSatuan * qty
+    };
+
+    await fetch('/api/db', { method: 'POST', body: JSON.stringify(payload) });
     
-    await tambahPenjualan(formData);
     e.currentTarget.reset();
-    setSelectedBarangId("");
-    setHargaSatuan(0);
-    setQty(1);
+    setSelectedBarangId(""); setHargaSatuan(0); setQty(1);
     await loadData();
     setIsLoading(false);
   };
@@ -248,72 +247,51 @@ function ViewPenjualan() {
       <h1 className="text-2xl font-bold mb-8">Manajemen Penjualan</h1>
       <div className="flex flex-col lg:flex-row gap-6">
         <div className="w-full lg:w-1/3 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-          <h3 className="font-bold flex items-center gap-2 mb-6">Tambah Transaksi</h3>
+          <h3 className="font-bold mb-6">Tambah Transaksi</h3>
           <form onSubmit={handleSubmit} className="space-y-4 text-sm">
-            <div>
-              <label className="block text-gray-500 mb-1">Tanggal</label>
-              <input type="date" name="tanggal" required className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" />
-            </div>
-            <div>
-              <label className="block text-gray-500 mb-1">Nama Pembeli</label>
-              <input type="text" name="pembeli" required placeholder="Masukkan nama" className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" />
-            </div>
+            <div><label className="block text-gray-500 mb-1">Tanggal</label><input type="date" name="tanggal" required className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" /></div>
+            <div><label className="block text-gray-500 mb-1">Nama Pembeli</label><input type="text" name="pembeli" required placeholder="Masukkan nama" className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" /></div>
             <div>
               <label className="block text-gray-500 mb-1">Barang</label>
               <select name="barang_id" required value={selectedBarangId} onChange={handleBarangChange} className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5">
                 <option value="" disabled>Pilih Barang...</option>
-                {dataBarang.map(b => (
-                  <option key={b.id} value={b.id}>{b.nama}</option>
-                ))}
+                {dataBarang.map(b => (<option key={b.id} value={b.id}>{b.nama}</option>))}
               </select>
             </div>
             <div className="flex gap-4">
-              <div className="flex-1">
-                <label className="block text-gray-500 mb-1">Harga Satuan</label>
-                <input type="text" value={formatRp(hargaSatuan)} className="w-full bg-gray-200 dark:bg-gray-700 border border-gray-200 dark:border-gray-600 rounded-lg px-4 py-2.5 text-gray-500" readOnly />
-              </div>
-              <div className="w-20">
-                <label className="block text-gray-500 mb-1">Qty</label>
-                <input type="number" name="qty" required min="1" value={qty} onChange={(e) => setQty(parseInt(e.target.value) || 1)} className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" />
-              </div>
+              <div className="flex-1"><label className="block text-gray-500 mb-1">Harga Satuan</label><input type="text" value={formatRp(hargaSatuan)} className="w-full bg-gray-200 dark:bg-gray-700 rounded-lg px-4 py-2.5 text-gray-500" readOnly /></div>
+              <div className="w-20"><label className="block text-gray-500 mb-1">Qty</label><input type="number" name="qty" required min="1" value={qty} onChange={(e) => setQty(parseInt(e.target.value) || 1)} className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" /></div>
             </div>
-            <div>
-              <label className="block text-gray-500 mb-1">Total Biaya</label>
-              <input type="text" value={formatRp(hargaSatuan * qty)} className="w-full bg-[#e8f7f0] dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg px-4 py-2.5 text-green-700 dark:text-green-400 font-semibold" readOnly />
-            </div>
+            <div><label className="block text-gray-500 mb-1">Total Biaya</label><input type="text" value={formatRp(hargaSatuan * qty)} className="w-full bg-[#e8f7f0] dark:bg-green-900/20 rounded-lg px-4 py-2.5 text-green-700 dark:text-green-400 font-semibold" readOnly /></div>
             <button type="submit" disabled={isLoading} className={`w-full mt-4 text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 ${isLoading ? 'bg-gray-400' : 'bg-[#0c6b45] hover:bg-[#095536]'}`}>
               <ShoppingCart size={16} /> {isLoading ? 'Menyimpan...' : 'Simpan Data'}
             </button>
           </form>
         </div>
-
         <div className="w-full lg:w-2/3 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
           <h3 className="font-bold mb-6">Riwayat Penjualan</h3>
           <div className="w-full overflow-x-auto">
             <table className="w-full text-left text-sm text-gray-500 dark:text-gray-400">
-              <thead className="text-xs text-gray-400 uppercase bg-transparent border-b border-gray-100 dark:border-gray-700">
+              <thead className="text-xs text-gray-400 uppercase border-b border-gray-100 dark:border-gray-700">
                 <tr>
                   <th className="pb-3">TGL</th>
                   <th className="pb-3">PEMBELI</th>
                   <th className="pb-3">BARANG</th>
                   <th className="pb-3">QTY</th>
                   <th className="pb-3">TOTAL</th>
+                  <th className="pb-3 text-right">AKSI</th>
                 </tr>
               </thead>
               <tbody>
-                {dataPenjualan.length === 0 ? (
-                  <tr><td colSpan={5} className="py-8 text-center text-gray-400">Belum ada data tersedia.</td></tr>
-                ) : (
-                  dataPenjualan.map((item) => (
-                    <tr key={item.id} className="border-b border-gray-50 dark:border-gray-700/50">
-                      <td className="py-3">{new Date(item.tanggal).toLocaleDateString('id-ID')}</td>
-                      <td className="py-3 font-medium text-gray-800 dark:text-gray-200">{item.pembeli}</td>
-                      <td className="py-3">{item.nama_barang}</td>
-                      <td className="py-3">{item.qty}</td>
-                      <td className="py-3 text-[#0c6b45] dark:text-green-400 font-semibold">{formatRp(item.total)}</td>
-                    </tr>
-                  ))
-                )}
+                {dataPenjualan.map((item) => (
+                  <tr key={item.id} className="border-b border-gray-50 dark:border-gray-700/50">
+                    <td className="py-3">{new Date(item.tanggal).toLocaleDateString('id-ID')}</td>
+                    <td className="py-3 font-medium text-gray-800 dark:text-gray-200">{item.pembeli}</td>
+                    <td className="py-3">{item.nama_barang}</td><td className="py-3">{item.qty}</td>
+                    <td className="py-3 text-[#0c6b45] dark:text-green-400 font-semibold">{formatRp(item.total)}</td>
+                    <td className="py-3"><ActionButtons id={item.id} /></td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>
@@ -331,8 +309,8 @@ function ViewBarang() {
   const [isLoading, setIsLoading] = useState(false);
 
   const loadData = async () => {
-    const data = await getBarang();
-    setDataBarang(data);
+    const res = await fetch('/api/db?type=barang');
+    setDataBarang(await res.json());
   };
 
   useEffect(() => { loadData(); }, []);
@@ -340,7 +318,15 @@ function ViewBarang() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
-    await tambahBarang(new FormData(e.currentTarget));
+    
+    const formData = new FormData(e.currentTarget);
+    const payload = {
+      type: 'barang',
+      nama: formData.get('nama'),
+      harga: Number(formData.get('harga'))
+    };
+
+    await fetch('/api/db', { method: 'POST', body: JSON.stringify(payload) });
     e.currentTarget.reset();
     await loadData();
     setIsLoading(false);
@@ -353,14 +339,8 @@ function ViewBarang() {
         <div className="w-full lg:w-1/3 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
           <h3 className="font-bold mb-6">Tambah Item</h3>
           <form onSubmit={handleSubmit} className="space-y-4 text-sm">
-            <div>
-              <label className="block text-gray-500 mb-1">Nama Barang</label>
-              <input type="text" name="nama" required className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" />
-            </div>
-            <div>
-              <label className="block text-gray-500 mb-1">Harga (Rp)</label>
-              <input type="number" name="harga" required className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" />
-            </div>
+            <div><label className="block text-gray-500 mb-1">Nama Barang</label><input type="text" name="nama" required className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" /></div>
+            <div><label className="block text-gray-500 mb-1">Harga (Rp)</label><input type="number" name="harga" required className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" /></div>
             <button type="submit" disabled={isLoading} className={`w-full mt-2 text-white py-3 rounded-lg font-semibold transition ${isLoading ? 'bg-gray-400' : 'bg-[#0c6b45] hover:bg-[#095536]'}`}>
               {isLoading ? 'Menyimpan...' : 'Tambah ke Database'}
             </button>
@@ -371,7 +351,12 @@ function ViewBarang() {
           <div className="w-full overflow-x-auto">
             <table className="w-full text-left text-sm text-gray-500 dark:text-gray-400">
               <thead className="text-xs text-gray-400 uppercase border-b border-gray-100 dark:border-gray-700">
-                <tr><th className="pb-3">ID</th><th className="pb-3">NAMA BARANG</th><th className="pb-3">HARGA</th></tr>
+                <tr>
+                  <th className="pb-3">ID</th>
+                  <th className="pb-3">NAMA BARANG</th>
+                  <th className="pb-3">HARGA</th>
+                  <th className="pb-3 text-right">AKSI</th>
+                </tr>
               </thead>
               <tbody>
                 {dataBarang.map((item) => (
@@ -379,6 +364,7 @@ function ViewBarang() {
                     <td className="py-3">#{item.id}</td>
                     <td className="py-3 font-medium text-gray-800 dark:text-gray-200">{item.nama}</td>
                     <td className="py-3 text-[#0c6b45] dark:text-green-400 font-semibold">{formatRp(item.harga)}</td>
+                    <td className="py-3"><ActionButtons id={item.id} /></td>
                   </tr>
                 ))}
               </tbody>
@@ -398,8 +384,8 @@ function ViewKeuangan() {
   const [isLoading, setIsLoading] = useState(false);
 
   const loadData = async () => {
-    const data = await getKeuangan();
-    setDataKeuangan(data);
+    const res = await fetch('/api/db?type=keuangan');
+    setDataKeuangan(await res.json());
   };
 
   useEffect(() => { loadData(); }, []);
@@ -407,7 +393,16 @@ function ViewKeuangan() {
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setIsLoading(true);
-    await tambahKeuangan(new FormData(e.currentTarget));
+    
+    const formData = new FormData(e.currentTarget);
+    const payload = {
+      type: 'keuangan',
+      tipe: formData.get('tipe'),
+      nominal: Number(formData.get('nominal')),
+      keterangan: formData.get('keterangan')
+    };
+
+    await fetch('/api/db', { method: 'POST', body: JSON.stringify(payload) });
     e.currentTarget.reset();
     await loadData();
     setIsLoading(false);
@@ -427,14 +422,8 @@ function ViewKeuangan() {
                 <option value="Pengeluaran">Pengeluaran</option>
               </select>
             </div>
-            <div>
-              <label className="block text-gray-500 mb-1">Nominal (Rp)</label>
-              <input type="number" name="nominal" required className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" />
-            </div>
-            <div>
-              <label className="block text-gray-500 mb-1">Keterangan</label>
-              <input type="text" name="keterangan" required placeholder="Contoh: Beli alat" className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" />
-            </div>
+            <div><label className="block text-gray-500 mb-1">Nominal (Rp)</label><input type="number" name="nominal" required className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" /></div>
+            <div><label className="block text-gray-500 mb-1">Keterangan</label><input type="text" name="keterangan" required placeholder="Contoh: Beli alat" className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" /></div>
             <button type="submit" disabled={isLoading} className={`w-full mt-2 text-white py-3 rounded-lg font-semibold transition ${isLoading ? 'bg-gray-400' : 'bg-[#0c6b45] hover:bg-[#095536]'}`}>
               {isLoading ? 'Menyimpan...' : 'Simpan Transaksi'}
             </button>
@@ -445,19 +434,21 @@ function ViewKeuangan() {
           <div className="w-full overflow-x-auto">
             <table className="w-full text-left text-sm text-gray-500 dark:text-gray-400">
               <thead className="text-xs text-gray-400 uppercase border-b border-gray-100 dark:border-gray-700">
-                <tr><th className="pb-3">ID</th><th className="pb-3">TIPE</th><th className="pb-3">KETERANGAN</th><th className="pb-3">NOMINAL</th></tr>
+                <tr>
+                  <th className="pb-3">ID</th>
+                  <th className="pb-3">TIPE</th>
+                  <th className="pb-3">KETERANGAN</th>
+                  <th className="pb-3">NOMINAL</th>
+                  <th className="pb-3 text-right">AKSI</th>
+                </tr>
               </thead>
               <tbody>
                 {dataKeuangan.map((item) => (
                   <tr key={item.id} className="border-b border-gray-50 dark:border-gray-700/50">
                     <td className="py-3">#{item.id}</td>
-                    <td className="py-3">
-                      <span className={`px-2 py-1 rounded text-xs font-semibold ${item.tipe === 'Pengeluaran' ? 'bg-red-100 text-red-600 dark:bg-red-900/30' : 'bg-green-100 text-green-700 dark:bg-green-900/30'}`}>
-                        {item.tipe}
-                      </span>
-                    </td>
-                    <td className="py-3">{item.keterangan}</td>
-                    <td className="py-3 font-semibold">{formatRp(item.nominal)}</td>
+                    <td className="py-3"><span className={`px-2 py-1 rounded text-xs font-semibold ${item.tipe === 'Pengeluaran' ? 'bg-red-100 text-red-600 dark:bg-red-900/30' : 'bg-green-100 text-green-700 dark:bg-green-900/30'}`}>{item.tipe}</span></td>
+                    <td className="py-3">{item.keterangan}</td><td className="py-3 font-semibold">{formatRp(item.nominal)}</td>
+                    <td className="py-3"><ActionButtons id={item.id} /></td>
                   </tr>
                 ))}
               </tbody>
