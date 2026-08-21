@@ -7,7 +7,7 @@ import {
   LayoutDashboard, ShoppingCart, Package, Wallet, 
   Settings, LogOut, Search, Mail, Bell, Moon, Sun, 
   Hexagon, Apple, Plus, RefreshCw, TrendingUp, TrendingDown, Coins,
-  Edit, Trash2, Send // <-- Tambahan Icon untuk Aksi
+  Edit, Trash2, Send
 } from 'lucide-react';
 
 const PRIMARY_GREEN = "#0c6b45";
@@ -199,16 +199,18 @@ function DashboardCard({ title, amount, icon, note, isPrimary = false }: any) {
 function ViewPenjualan() {
   const [dataPenjualan, setDataPenjualan] = useState<any[]>([]);
   const [dataBarang, setDataBarang] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [selectedBarangId, setSelectedBarangId] = useState("");
   const [hargaSatuan, setHargaSatuan] = useState(0);
   const [qty, setQty] = useState(1);
+  const [isFetching, setIsFetching] = useState(true);
 
   const loadData = async () => {
+    setIsFetching(true);
     const resP = await fetch('/api/db?type=penjualan');
     const resB = await fetch('/api/db?type=barang');
     setDataPenjualan(await resP.json());
     setDataBarang(await resB.json());
+    setIsFetching(false);
   };
 
   useEffect(() => { loadData(); }, []);
@@ -222,24 +224,34 @@ function ViewPenjualan() {
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setIsLoading(true);
-    
     const formData = new FormData(e.currentTarget);
-    const payload = {
-      type: 'penjualan',
+    const totalBiaya = hargaSatuan * qty;
+    
+    // --- TRIK OPTIMISTIC UI: LANGSUNG MASUKKAN KE LAYAR ---
+    const barangTerpilih = dataBarang.find(b => b.id.toString() === selectedBarangId);
+    const newData = {
+      id: '...', // ID sementara
       tanggal: formData.get('tanggal'),
       pembeli: formData.get('pembeli'),
-      barang_id: Number(formData.get('barang_id')),
-      qty: Number(formData.get('qty')),
-      total: hargaSatuan * qty
+      nama_barang: barangTerpilih ? barangTerpilih.nama : 'Unknown',
+      qty: qty,
+      total: totalBiaya
     };
-
-    await fetch('/api/db', { method: 'POST', body: JSON.stringify(payload) });
-    
+    setDataPenjualan([newData, ...dataPenjualan]); // UI langsung update instan!
     e.currentTarget.reset();
     setSelectedBarangId(""); setHargaSatuan(0); setQty(1);
-    await loadData();
-    setIsLoading(false);
+
+    // --- PROSES ASLI DI BACKGROUND ---
+    const payload = {
+      type: 'penjualan',
+      tanggal: newData.tanggal,
+      pembeli: newData.pembeli,
+      barang_id: Number(formData.get('barang_id')),
+      qty: newData.qty,
+      total: newData.total
+    };
+    await fetch('/api/db', { method: 'POST', body: JSON.stringify(payload) });
+    // Sengaja tidak loadData ulang agar tidak kedip.
   };
 
   return (
@@ -263,8 +275,8 @@ function ViewPenjualan() {
               <div className="w-20"><label className="block text-gray-500 mb-1">Qty</label><input type="number" name="qty" required min="1" value={qty} onChange={(e) => setQty(parseInt(e.target.value) || 1)} className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" /></div>
             </div>
             <div><label className="block text-gray-500 mb-1">Total Biaya</label><input type="text" value={formatRp(hargaSatuan * qty)} className="w-full bg-[#e8f7f0] dark:bg-green-900/20 rounded-lg px-4 py-2.5 text-green-700 dark:text-green-400 font-semibold" readOnly /></div>
-            <button type="submit" disabled={isLoading} className={`w-full mt-4 text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 ${isLoading ? 'bg-gray-400' : 'bg-[#0c6b45] hover:bg-[#095536]'}`}>
-              <ShoppingCart size={16} /> {isLoading ? 'Menyimpan...' : 'Simpan Data'}
+            <button type="submit" className={`w-full mt-4 text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 bg-[#0c6b45] hover:bg-[#095536] transition`}>
+              <ShoppingCart size={16} /> Simpan Data
             </button>
           </form>
         </div>
@@ -274,24 +286,26 @@ function ViewPenjualan() {
             <table className="w-full text-left text-sm text-gray-500 dark:text-gray-400">
               <thead className="text-xs text-gray-400 uppercase border-b border-gray-100 dark:border-gray-700">
                 <tr>
-                  <th className="pb-3">TGL</th>
-                  <th className="pb-3">PEMBELI</th>
-                  <th className="pb-3">BARANG</th>
-                  <th className="pb-3">QTY</th>
-                  <th className="pb-3">TOTAL</th>
-                  <th className="pb-3 text-right">AKSI</th>
+                  <th className="pb-3">TGL</th><th className="pb-3">PEMBELI</th><th className="pb-3">BARANG</th>
+                  <th className="pb-3">QTY</th><th className="pb-3">TOTAL</th><th className="pb-3 text-right">AKSI</th>
                 </tr>
               </thead>
               <tbody>
-                {dataPenjualan.map((item) => (
-                  <tr key={item.id} className="border-b border-gray-50 dark:border-gray-700/50">
-                    <td className="py-3">{new Date(item.tanggal).toLocaleDateString('id-ID')}</td>
-                    <td className="py-3 font-medium text-gray-800 dark:text-gray-200">{item.pembeli}</td>
-                    <td className="py-3">{item.nama_barang}</td><td className="py-3">{item.qty}</td>
-                    <td className="py-3 text-[#0c6b45] dark:text-green-400 font-semibold">{formatRp(item.total)}</td>
-                    <td className="py-3"><ActionButtons id={item.id} /></td>
-                  </tr>
-                ))}
+                {isFetching ? (
+                  <tr><td colSpan={6} className="py-8 text-center text-gray-400 animate-pulse">Sedang memuat data...</td></tr>
+                ) : dataPenjualan.length === 0 ? (
+                   <tr><td colSpan={6} className="py-8 text-center text-gray-400">Belum ada data tersedia.</td></tr>
+                ) : (
+                  dataPenjualan.map((item, i) => (
+                    <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50">
+                      <td className="py-3">{new Date(item.tanggal).toLocaleDateString('id-ID')}</td>
+                      <td className="py-3 font-medium text-gray-800 dark:text-gray-200">{item.pembeli}</td>
+                      <td className="py-3">{item.nama_barang}</td><td className="py-3">{item.qty}</td>
+                      <td className="py-3 text-[#0c6b45] dark:text-green-400 font-semibold">{formatRp(item.total)}</td>
+                      <td className="py-3"><ActionButtons id={item.id} /></td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -306,30 +320,33 @@ function ViewPenjualan() {
 // ==========================================
 function ViewBarang() {
   const [dataBarang, setDataBarang] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(true);
 
   const loadData = async () => {
+    setIsFetching(true);
     const res = await fetch('/api/db?type=barang');
     setDataBarang(await res.json());
+    setIsFetching(false);
   };
 
   useEffect(() => { loadData(); }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setIsLoading(true);
-    
     const formData = new FormData(e.currentTarget);
-    const payload = {
-      type: 'barang',
-      nama: formData.get('nama'),
+    
+    // --- TRIK OPTIMISTIC UI ---
+    const newData = {
+      id: '...', // ID sementara
+      nama: formData.get('nama') as string,
       harga: Number(formData.get('harga'))
     };
-
-    await fetch('/api/db', { method: 'POST', body: JSON.stringify(payload) });
+    setDataBarang([newData, ...dataBarang]); // Langsung update tabel
     e.currentTarget.reset();
-    await loadData();
-    setIsLoading(false);
+
+    // --- PROSES ASLI BACKGROUND ---
+    const payload = { type: 'barang', nama: newData.nama, harga: newData.harga };
+    await fetch('/api/db', { method: 'POST', body: JSON.stringify(payload) });
   };
 
   return (
@@ -341,8 +358,8 @@ function ViewBarang() {
           <form onSubmit={handleSubmit} className="space-y-4 text-sm">
             <div><label className="block text-gray-500 mb-1">Nama Barang</label><input type="text" name="nama" required className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" /></div>
             <div><label className="block text-gray-500 mb-1">Harga (Rp)</label><input type="number" name="harga" required className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" /></div>
-            <button type="submit" disabled={isLoading} className={`w-full mt-2 text-white py-3 rounded-lg font-semibold transition ${isLoading ? 'bg-gray-400' : 'bg-[#0c6b45] hover:bg-[#095536]'}`}>
-              {isLoading ? 'Menyimpan...' : 'Tambah ke Database'}
+            <button type="submit" className={`w-full mt-2 text-white py-3 rounded-lg font-semibold bg-[#0c6b45] hover:bg-[#095536] transition`}>
+              Tambah ke Database
             </button>
           </form>
         </div>
@@ -351,22 +368,23 @@ function ViewBarang() {
           <div className="w-full overflow-x-auto">
             <table className="w-full text-left text-sm text-gray-500 dark:text-gray-400">
               <thead className="text-xs text-gray-400 uppercase border-b border-gray-100 dark:border-gray-700">
-                <tr>
-                  <th className="pb-3">ID</th>
-                  <th className="pb-3">NAMA BARANG</th>
-                  <th className="pb-3">HARGA</th>
-                  <th className="pb-3 text-right">AKSI</th>
-                </tr>
+                <tr><th className="pb-3">ID</th><th className="pb-3">NAMA BARANG</th><th className="pb-3">HARGA</th><th className="pb-3 text-right">AKSI</th></tr>
               </thead>
               <tbody>
-                {dataBarang.map((item) => (
-                  <tr key={item.id} className="border-b border-gray-50 dark:border-gray-700/50">
-                    <td className="py-3">#{item.id}</td>
-                    <td className="py-3 font-medium text-gray-800 dark:text-gray-200">{item.nama}</td>
-                    <td className="py-3 text-[#0c6b45] dark:text-green-400 font-semibold">{formatRp(item.harga)}</td>
-                    <td className="py-3"><ActionButtons id={item.id} /></td>
-                  </tr>
-                ))}
+                {isFetching ? (
+                  <tr><td colSpan={4} className="py-8 text-center text-gray-400 animate-pulse">Sedang memuat data...</td></tr>
+                ) : dataBarang.length === 0 ? (
+                  <tr><td colSpan={4} className="py-8 text-center text-gray-400">Belum ada data tersedia.</td></tr>
+                ) : (
+                  dataBarang.map((item, i) => (
+                    <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50">
+                      <td className="py-3">{item.id === '...' ? '...' : `#${item.id}`}</td>
+                      <td className="py-3 font-medium text-gray-800 dark:text-gray-200">{item.nama}</td>
+                      <td className="py-3 text-[#0c6b45] dark:text-green-400 font-semibold">{formatRp(item.harga)}</td>
+                      <td className="py-3"><ActionButtons id={item.id} /></td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -381,31 +399,34 @@ function ViewBarang() {
 // ==========================================
 function ViewKeuangan() {
   const [dataKeuangan, setDataKeuangan] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isFetching, setIsFetching] = useState(true);
 
   const loadData = async () => {
+    setIsFetching(true);
     const res = await fetch('/api/db?type=keuangan');
     setDataKeuangan(await res.json());
+    setIsFetching(false);
   };
 
   useEffect(() => { loadData(); }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setIsLoading(true);
-    
     const formData = new FormData(e.currentTarget);
-    const payload = {
-      type: 'keuangan',
-      tipe: formData.get('tipe'),
-      nominal: Number(formData.get('nominal')),
-      keterangan: formData.get('keterangan')
+    
+    // --- TRIK OPTIMISTIC UI ---
+    const newData = {
+      id: '...', // ID sementara
+      tipe: formData.get('tipe') as string,
+      keterangan: formData.get('keterangan') as string,
+      nominal: Number(formData.get('nominal'))
     };
-
-    await fetch('/api/db', { method: 'POST', body: JSON.stringify(payload) });
+    setDataKeuangan([newData, ...dataKeuangan]); // Langsung update tabel
     e.currentTarget.reset();
-    await loadData();
-    setIsLoading(false);
+
+    // --- PROSES ASLI BACKGROUND ---
+    const payload = { type: 'keuangan', tipe: newData.tipe, nominal: newData.nominal, keterangan: newData.keterangan };
+    await fetch('/api/db', { method: 'POST', body: JSON.stringify(payload) });
   };
 
   return (
@@ -424,8 +445,8 @@ function ViewKeuangan() {
             </div>
             <div><label className="block text-gray-500 mb-1">Nominal (Rp)</label><input type="number" name="nominal" required className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" /></div>
             <div><label className="block text-gray-500 mb-1">Keterangan</label><input type="text" name="keterangan" required placeholder="Contoh: Beli alat" className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" /></div>
-            <button type="submit" disabled={isLoading} className={`w-full mt-2 text-white py-3 rounded-lg font-semibold transition ${isLoading ? 'bg-gray-400' : 'bg-[#0c6b45] hover:bg-[#095536]'}`}>
-              {isLoading ? 'Menyimpan...' : 'Simpan Transaksi'}
+            <button type="submit" className={`w-full mt-2 text-white py-3 rounded-lg font-semibold bg-[#0c6b45] hover:bg-[#095536] transition`}>
+              Simpan Transaksi
             </button>
           </form>
         </div>
@@ -434,23 +455,23 @@ function ViewKeuangan() {
           <div className="w-full overflow-x-auto">
             <table className="w-full text-left text-sm text-gray-500 dark:text-gray-400">
               <thead className="text-xs text-gray-400 uppercase border-b border-gray-100 dark:border-gray-700">
-                <tr>
-                  <th className="pb-3">ID</th>
-                  <th className="pb-3">TIPE</th>
-                  <th className="pb-3">KETERANGAN</th>
-                  <th className="pb-3">NOMINAL</th>
-                  <th className="pb-3 text-right">AKSI</th>
-                </tr>
+                <tr><th className="pb-3">ID</th><th className="pb-3">TIPE</th><th className="pb-3">KETERANGAN</th><th className="pb-3">NOMINAL</th><th className="pb-3 text-right">AKSI</th></tr>
               </thead>
               <tbody>
-                {dataKeuangan.map((item) => (
-                  <tr key={item.id} className="border-b border-gray-50 dark:border-gray-700/50">
-                    <td className="py-3">#{item.id}</td>
-                    <td className="py-3"><span className={`px-2 py-1 rounded text-xs font-semibold ${item.tipe === 'Pengeluaran' ? 'bg-red-100 text-red-600 dark:bg-red-900/30' : 'bg-green-100 text-green-700 dark:bg-green-900/30'}`}>{item.tipe}</span></td>
-                    <td className="py-3">{item.keterangan}</td><td className="py-3 font-semibold">{formatRp(item.nominal)}</td>
-                    <td className="py-3"><ActionButtons id={item.id} /></td>
-                  </tr>
-                ))}
+                {isFetching ? (
+                  <tr><td colSpan={5} className="py-8 text-center text-gray-400 animate-pulse">Sedang memuat data...</td></tr>
+                ) : dataKeuangan.length === 0 ? (
+                  <tr><td colSpan={5} className="py-8 text-center text-gray-400">Belum ada data tersedia.</td></tr>
+                ) : (
+                  dataKeuangan.map((item, i) => (
+                    <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50">
+                      <td className="py-3">{item.id === '...' ? '...' : `#${item.id}`}</td>
+                      <td className="py-3"><span className={`px-2 py-1 rounded text-xs font-semibold ${item.tipe === 'Pengeluaran' ? 'bg-red-100 text-red-600 dark:bg-red-900/30' : 'bg-green-100 text-green-700 dark:bg-green-900/30'}`}>{item.tipe}</span></td>
+                      <td className="py-3">{item.keterangan}</td><td className="py-3 font-semibold">{formatRp(item.nominal)}</td>
+                      <td className="py-3"><ActionButtons id={item.id} /></td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
