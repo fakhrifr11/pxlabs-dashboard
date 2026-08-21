@@ -3,11 +3,12 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from 'next-themes';
+import * as XLSX from 'xlsx'; // <-- IMPORT SHEETJS EXCEL
 import { 
   LayoutDashboard, ShoppingCart, Package, Wallet, 
   Settings, LogOut, Search, Mail, Bell, Moon, Sun, 
   Hexagon, Apple, Plus, RefreshCw, TrendingUp, TrendingDown, Coins,
-  Edit, Trash2, Send, FileText, Download // <-- Tambahan icon FileText & Download
+  Edit, Trash2, Send, FileText, Download, FileSpreadsheet // <-- Tambah icon FileSpreadsheet
 } from 'lucide-react';
 
 const PRIMARY_GREEN = "#0c6b45";
@@ -67,7 +68,6 @@ export default function App() {
     );
   }
 
-  // --- MENU DITAMBAHKAN "INVOICE" ---
   const menuItems = [
     { id: 'Dashboard', icon: <LayoutDashboard size={20} /> },
     { id: 'Penjualan', icon: <ShoppingCart size={20} /> },
@@ -147,10 +147,11 @@ function ActionButtons({ id, onEdit, onDelete }: { id: any, onEdit: () => void, 
 }
 
 // ==========================================
-// VIEW DASHBOARD
+// VIEW DASHBOARD (DENGAN EXCEL DOWNLOAD)
 // ==========================================
 function ViewDashboard() {
   const [stats, setStats] = useState({ penjualan: 0, pengeluaran: 0, modalTersedia: 0, labaBersih: 0 });
+  const [isDownloading, setIsDownloading] = useState(false);
 
   const loadStats = async () => {
     const res = await fetch('/api/db?type=dashboard');
@@ -160,16 +161,56 @@ function ViewDashboard() {
 
   useEffect(() => { loadStats(); }, []);
 
+  // --- LOGIC BACKEND DOWNLOAD ALL TO EXCEL ---
+  const handleDownloadExcel = async () => {
+    setIsDownloading(true);
+    try {
+      const res = await fetch('/api/db?type=excel');
+      const data = await res.json();
+
+      // Membuat Workbook Baru
+      const workbook = XLSX.utils.book_new();
+
+      // Konversi Array Data Menjadi Sheet Excel
+      const sheetDashboard = XLSX.utils.json_to_sheet(data.ringkasan);
+      const sheetPenjualan = XLSX.utils.json_to_sheet(data.penjualan);
+      const sheetBarang = XLSX.utils.json_to_sheet(data.barang);
+      const sheetKeuangan = XLSX.utils.json_to_sheet(data.keuangan);
+
+      // Memasukkan Lembar Kerja (Sheets) ke Workbook
+      XLSX.utils.book_append_sheet(workbook, sheetDashboard, "Ringkasan Dashboard");
+      XLSX.utils.book_append_sheet(workbook, sheetPenjualan, "Data Penjualan");
+      XLSX.utils.book_append_sheet(workbook, sheetBarang, "Database Barang");
+      XLSX.utils.book_append_sheet(workbook, sheetKeuangan, "Laporan Keuangan");
+
+      // Generate File Excel & Unduh otomatis ke PC/HP
+      XLSX.writeFile(workbook, `Laporan_PXLabs_Lengkap.xlsx`);
+    } catch (error) {
+      alert("Gagal mendownload data excel");
+    }
+    setIsDownloading(false);
+  };
+
   return (
     <div>
-      <div className="flex justify-between items-end mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold mb-1">Dashboard</h1>
           <p className="text-gray-500 text-sm">Ringkasan aktivitas keuangan dan data operasional Anda.</p>
         </div>
-        <button onClick={loadStats} className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition">
-          <RefreshCw size={16} /> Sinkronisasi
-        </button>
+        <div className="flex items-center gap-3">
+          {/* TOMBOL DOWNLOAD EXCEL BARU */}
+          <button 
+            onClick={handleDownloadExcel} 
+            disabled={isDownloading}
+            className="flex items-center gap-2 px-4 py-2.5 bg-green-700 text-white rounded-lg text-sm font-semibold shadow-md hover:bg-green-800 transition disabled:bg-gray-400"
+          >
+            <FileSpreadsheet size={16} /> {isDownloading ? 'Memproses...' : 'Export Semua ke Excel'}
+          </button>
+          <button onClick={loadStats} className="flex items-center gap-2 px-4 py-2.5 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-lg text-sm font-semibold hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+            <RefreshCw size={16} /> Sinkronisasi
+          </button>
+        </div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <DashboardCard title="Total Penjualan" amount={formatRp(stats.penjualan)} icon={<TrendingUp size={16}/>} note="Terkalkulasi otomatis" isPrimary />
@@ -562,14 +603,13 @@ function ViewKeuangan() {
 }
 
 // ==========================================
-// VIEW INVOICE (BARU)
+// VIEW INVOICE 
 // ==========================================
 function ViewInvoice() {
   const [dataPenjualan, setDataPenjualan] = useState<any[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [isFetching, setIsFetching] = useState(true);
 
-  // Mengambil data dari tabel penjualan untuk dijadikan list invoice
   useEffect(() => {
     const loadData = async () => {
       setIsFetching(true);
@@ -580,30 +620,23 @@ function ViewInvoice() {
     loadData();
   }, []);
 
-  // Fungsi Native Print PDF
   const handlePrintPDF = (item: any) => {
     const printWindow = window.open('', '', 'width=800,height=600');
-    if (!printWindow) return alert("Pop-up diblokir oleh browser. Izinkan pop-up untuk mencetak PDF.");
-
+    if (!printWindow) return alert("Pop-up diblokir oleh browser.");
     const hargaSatuan = item.total / item.qty;
     
-    // Template HTML untuk bentuk Invoice
     printWindow.document.write(`
       <html>
         <head>
           <title>Invoice - ${item.pembeli}</title>
           <style>
-            body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; line-height: 1.6; }
-            .header { display: flex; justify-content: space-between; border-bottom: 2px solid #0c6b45; padding-bottom: 20px; margin-bottom: 30px; }
-            .invoice-title { font-size: 28px; font-weight: bold; color: #0c6b45; letter-spacing: 2px;}
-            .details-container { display: flex; justify-content: space-between; margin-bottom: 40px; }
-            .bill-to strong { display: block; font-size: 14px; color: #777; margin-bottom: 5px; text-transform: uppercase;}
-            .bill-to span { font-size: 18px; font-weight: bold; color: #222; }
-            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-            th, td { border-bottom: 1px solid #ddd; padding: 14px 10px; text-align: left; }
-            th { background-color: #f8f9fa; color: #555; text-transform: uppercase; font-size: 12px; }
-            .total-row td { font-weight: bold; font-size: 18px; color: #0c6b45; border-top: 2px solid #0c6b45; border-bottom: none; }
-            .footer { margin-top: 50px; text-align: center; color: #888; font-size: 12px; }
+            body { font-family: Arial, sans-serif; padding: 40px; color: #333; }
+            .header { display: flex; justify-content: space-between; border-bottom: 2px solid #0c6b45; padding-bottom: 20px; }
+            .invoice-title { font-size: 28px; font-weight: bold; color: #0c6b45; }
+            table { width: 100%; border-collapse: collapse; margin-top: 40px; }
+            th, td { border-bottom: 1px solid #ddd; padding: 12px; text-align: left; }
+            th { background-color: #f8f9fa; }
+            .total-row td { font-weight: bold; font-size: 18px; color: #0c6b45; }
           </style>
         </head>
         <body>
@@ -611,127 +644,54 @@ function ViewInvoice() {
             <div>
               <div class="invoice-title">INVOICE</div>
               <div style="font-weight: bold; font-size: 18px;">PXLabs Official</div>
-              <div style="color: #666; font-size: 14px;">Jl. Teknologi No. 1, Jakarta Selatan</div>
             </div>
             <div style="text-align: right;">
-              <div style="font-size: 14px; color: #555;">Tanggal Terbit:</div>
-              <div style="font-weight: bold; margin-bottom: 10px;">${new Date(item.tanggal).toLocaleDateString('id-ID', { year: 'numeric', month: 'long', day: 'numeric' })}</div>
-              <div style="font-size: 14px; color: #555;">ID Transaksi:</div>
+              <div>Tanggal: ${new Date(item.tanggal).toLocaleDateString('id-ID')}</div>
               <div style="font-weight: bold;">#INV-${item.id}</div>
             </div>
           </div>
-          
-          <div class="details-container">
-            <div class="bill-to">
-              <strong>Ditagihkan Kepada:</strong>
-              <span>${item.pembeli}</span>
-            </div>
-          </div>
-
+          <p><strong>Kepada:</strong> ${item.pembeli}</p>
           <table>
-            <thead>
-              <tr>
-                <th>Deskripsi Barang</th>
-                <th style="text-align: center;">Kuantitas</th>
-                <th style="text-align: right;">Harga Satuan</th>
-                <th style="text-align: right;">Jumlah</th>
-              </tr>
-            </thead>
+            <thead><tr><th>Barang</th><th>Qty</th><th>Harga</th><th>Total</th></tr></thead>
             <tbody>
-              <tr>
-                <td>${item.nama_barang}</td>
-                <td style="text-align: center;">${item.qty}</td>
-                <td style="text-align: right;">${formatRp(hargaSatuan)}</td>
-                <td style="text-align: right;">${formatRp(item.total)}</td>
-              </tr>
-              <tr class="total-row">
-                <td colspan="3" style="text-align: right;">Total Tagihan</td>
-                <td style="text-align: right;">${formatRp(item.total)}</td>
-              </tr>
+              <tr><td>${item.nama_barang}</td><td>${item.qty}</td><td>${formatRp(hargaSatuan)}</td><td>${formatRp(item.total)}</td></tr>
+              <tr class="total-row"><td colspan="3" style="text-align: right;">Total Tagihan</td><td>${formatRp(item.total)}</td></tr>
             </tbody>
           </table>
-
-          <div class="footer">
-            <p>Terima kasih atas kepercayaan Anda berbelanja di PXLabs.</p>
-            <p>Jika ada pertanyaan terkait invoice ini, silakan hubungi admin@pxlabs.com</p>
-          </div>
-
-          <script>
-            // Otomatis memanggil dialog print/save as PDF browser setelah HTML selesai dimuat
-            window.onload = () => { 
-              window.print();
-              setTimeout(() => { window.close(); }, 500); 
-            }
-          </script>
+          <script>window.onload = () => { window.print(); setTimeout(() => { window.close(); }, 500); }</script>
         </body>
       </html>
     `);
     printWindow.document.close();
   };
 
-  const filteredData = dataPenjualan.filter(item => 
-    item.pembeli?.toLowerCase().includes(searchQuery.toLowerCase()) || 
-    item.nama_barang?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredData = dataPenjualan.filter(item => item.pembeli?.toLowerCase().includes(searchQuery.toLowerCase()) || item.nama_barang?.toLowerCase().includes(searchQuery.toLowerCase()));
 
   return (
     <div>
       <h1 className="text-2xl font-bold mb-8">Pembuatan Invoice</h1>
-      
       <div className="w-full bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-          <div>
-            <h3 className="font-bold">Daftar Transaksi Selesai</h3>
-            <p className="text-sm text-gray-500">Pilih riwayat transaksi penjualan untuk diunduh sebagai PDF Invoice.</p>
-          </div>
+          <div><h3 className="font-bold">Daftar Transaksi Selesai</h3><p className="text-sm text-gray-500">Unduh riwayat penjualan sebagai PDF Invoice.</p></div>
           <div className="relative w-full sm:w-64">
             <Search size={16} className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-            <input 
-              type="text" 
-              placeholder="Cari pembeli / barang..." 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm focus:outline-none focus:border-[#0c6b45]"
-            />
+            <input type="text" placeholder="Cari pembeli..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="w-full pl-9 pr-4 py-2 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg text-sm" />
           </div>
         </div>
-
         <div className="w-full overflow-x-auto">
           <table className="w-full text-left text-sm text-gray-500 dark:text-gray-400">
             <thead className="text-xs text-gray-400 uppercase border-b border-gray-100 dark:border-gray-700">
-              <tr>
-                <th className="pb-3">ID INV</th>
-                <th className="pb-3">TGL ORDER</th>
-                <th className="pb-3">PEMBELI</th>
-                <th className="pb-3">BARANG / ITEM</th>
-                <th className="pb-3">TOTAL</th>
-                <th className="pb-3 text-right">CETAK PDF</th>
-              </tr>
+              <tr><th>ID INV</th><th>TGL ORDER</th><th>PEMBELI</th><th>BARANG</th><th>TOTAL</th><th className="text-right">CETAK</th></tr>
             </thead>
             <tbody>
-              {isFetching ? (
-                <tr><td colSpan={6} className="py-8 text-center text-gray-400 animate-pulse">Sedang memuat riwayat penjualan...</td></tr>
-              ) : filteredData.length === 0 ? (
-                 <tr><td colSpan={6} className="py-8 text-center text-gray-400">Pencarian tidak ditemukan.</td></tr>
-              ) : (
-                filteredData.map((item, i) => (
-                  <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50 hover:bg-gray-50/50 dark:hover:bg-gray-800/50">
-                    <td className="py-3 font-semibold text-gray-800 dark:text-gray-200">#INV-{item.id}</td>
-                    <td className="py-3">{new Date(item.tanggal).toLocaleDateString('id-ID')}</td>
-                    <td className="py-3 font-medium text-gray-800 dark:text-gray-200">{item.pembeli}</td>
-                    <td className="py-3">{item.nama_barang} <span className="text-gray-400 text-xs">(x{item.qty})</span></td>
-                    <td className="py-3 text-[#0c6b45] dark:text-green-400 font-semibold">{formatRp(item.total)}</td>
-                    <td className="py-3 text-right">
-                      <button 
-                        onClick={() => handlePrintPDF(item)} 
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#e8f7f0] dark:bg-green-900/30 text-[#0c6b45] dark:text-green-400 font-semibold rounded-lg hover:bg-green-100 dark:hover:bg-green-900/50 transition text-xs"
-                      >
-                        <Download size={14} /> Download PDF
-                      </button>
-                    </td>
-                  </tr>
-                ))
-              )}
+              {filteredData.map((item, i) => (
+                <tr key={i} className="border-b border-gray-50 dark:border-gray-700/50">
+                  <td className="py-3 font-semibold">#INV-{item.id}</td><td>{new Date(item.tanggal).toLocaleDateString('id-ID')}</td>
+                  <td className="py-3 font-medium text-gray-800 dark:text-gray-200">{item.pembeli}</td><td>{item.nama_barang} (x{item.qty})</td>
+                  <td className="py-3 text-[#0c6b45] dark:text-green-400 font-semibold">{formatRp(item.total)}</td>
+                  <td className="py-3 text-right"><button onClick={() => handlePrintPDF(item)} className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#e8f7f0] dark:bg-green-900/30 text-[#0c6b45] rounded-lg text-xs font-semibold"><Download size={14} /> PDF</button></td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>

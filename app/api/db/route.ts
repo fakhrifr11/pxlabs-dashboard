@@ -8,6 +8,36 @@ export async function GET(req: Request) {
   const type = searchParams.get('type');
 
   try {
+
+    // --- TAMBAHKAN BLOK INI ---
+    if (type === 'excel') {
+        const barang = await sql`SELECT * FROM barang ORDER BY id ASC`;
+        const penjualan = await sql`SELECT p.*, b.nama as nama_barang FROM penjualan p LEFT JOIN barang b ON p.barang_id = b.id ORDER BY p.id ASC`;
+        const keuangan = await sql`SELECT * FROM keuangan ORDER BY id ASC`;
+        
+        // Hitung ringkasan statistik untuk dashboard
+        const tPenjualan = await sql`SELECT SUM(total) as total FROM penjualan`;
+        const tPengeluaran = await sql`SELECT SUM(nominal) as total FROM keuangan WHERE tipe = 'Pengeluaran'`;
+        const tModal = await sql`SELECT SUM(nominal) as total FROM keuangan WHERE tipe = 'Tambah Modal'`;
+        const penjualanSum = Number(tPenjualan.rows[0]?.total || 0);
+        const pengeluaranSum = Number(tPengeluaran.rows[0]?.total || 0);
+        const modalAwal = Number(tModal.rows[0]?.total || 0);
+  
+        const ringkasan = [{
+          'Total Penjualan': penjualanSum,
+          'Total Pengeluaran': pengeluaranSum,
+          'Modal Tersedia': (modalAwal + penjualanSum) - pengeluaranSum,
+          'Laba Bersih': penjualanSum - pengeluaranSum
+        }];
+  
+        return NextResponse.json({
+          ringkasan,
+          barang: barang.rows,
+          penjualan: penjualan.rows,
+          keuangan: keuangan.rows
+        });
+      }
+
     if (type === 'setup') {
       await sql`CREATE TABLE IF NOT EXISTS barang (id SERIAL PRIMARY KEY, nama VARCHAR(255) NOT NULL, harga INT NOT NULL);`;
       await sql`CREATE TABLE IF NOT EXISTS penjualan (id SERIAL PRIMARY KEY, tanggal DATE NOT NULL, pembeli VARCHAR(255) NOT NULL, barang_id INT NOT NULL, qty INT NOT NULL, total INT NOT NULL);`;
