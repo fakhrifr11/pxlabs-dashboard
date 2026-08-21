@@ -2,7 +2,7 @@
 import { sql } from '@vercel/postgres';
 import { NextResponse } from 'next/server';
 
-// Fungsi untuk MENGAMBIL data (GET)
+// 1. MENGAMBIL DATA (GET)
 export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const type = searchParams.get('type');
@@ -52,10 +52,9 @@ export async function GET(req: Request) {
   }
 }
 
-// Fungsi untuk MENAMBAH data (POST)
+// 2. MENAMBAH DATA (POST)
 export async function POST(req: Request) {
   const body = await req.json();
-  
   try {
     if (body.type === 'barang') {
       await sql`INSERT INTO barang (nama, harga) VALUES (${body.nama}, ${body.harga})`;
@@ -69,5 +68,48 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: true });
   } catch (error) {
     return NextResponse.json({ error: "Gagal menyimpan data" }, { status: 500 });
+  }
+}
+
+// 3. MENGUBAH DATA (PUT) - Baru Ditambahkan
+export async function PUT(req: Request) {
+  const body = await req.json();
+  try {
+    if (body.type === 'barang') {
+      await sql`UPDATE barang SET nama = ${body.nama}, harga = ${body.harga} WHERE id = ${body.id}`;
+    }
+    if (body.type === 'penjualan') {
+      await sql`UPDATE penjualan SET tanggal = ${body.tanggal}, pembeli = ${body.pembeli}, barang_id = ${body.barang_id}, qty = ${body.qty}, total = ${body.total} WHERE id = ${body.id}`;
+    }
+    if (body.type === 'keuangan') {
+      await sql`UPDATE keuangan SET tipe = ${body.tipe}, nominal = ${body.nominal}, keterangan = ${body.keterangan} WHERE id = ${body.id}`;
+    }
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json({ error: "Gagal memperbarui data" }, { status: 500 });
+  }
+}
+
+// 4. MENGHAPUS DATA (DELETE) - Baru Ditambahkan
+export async function DELETE(req: Request) {
+  const { searchParams } = new URL(req.url);
+  const type = searchParams.get('type');
+  const id = searchParams.get('id');
+
+  if (!type || !id) return NextResponse.json({ error: "Parameter tidak lengkap" }, { status: 400 });
+
+  try {
+    if (type === 'barang') {
+      await sql`DELETE FROM barang WHERE id = ${id}`;
+    }
+    if (type === 'penjualan') {
+      await sql`DELETE FROM penjualan WHERE id = ${id}`;
+    }
+    if (type === 'keuangan') {
+      await sql`DELETE FROM keuangan WHERE id = ${id}`;
+    }
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return NextResponse.json({ error: "Gagal menghapus data" }, { status: 500 });
   }
 }

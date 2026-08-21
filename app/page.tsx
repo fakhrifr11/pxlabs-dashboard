@@ -126,19 +126,17 @@ export default function App() {
   );
 }
 
-// ==========================================
-// KOMPONEN TOMBOL AKSI
-// ==========================================
-function ActionButtons({ id }: { id: string | number }) {
+// Komponen Tombol Aksi Universal
+function ActionButtons({ id, onEdit, onDelete }: { id: any, onEdit: () => void, onDelete: () => void }) {
   return (
     <div className="flex items-center justify-end gap-2">
-      <button onClick={() => alert(`Fitur Edit data ID: ${id}`)} className="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-md transition" title="Edit">
+      <button onClick={onEdit} className="p-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50 rounded-md transition" title="Edit">
         <Edit size={16} />
       </button>
-      <button onClick={() => alert(`Fitur Hapus data ID: ${id}`)} className="p-1.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-md transition" title="Hapus">
+      <button onClick={onDelete} className="p-1.5 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/50 rounded-md transition" title="Hapus">
         <Trash2 size={16} />
       </button>
-      <button onClick={() => alert(`Fitur Kirim data ID: ${id}`)} className="p-1.5 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50 rounded-md transition" title="Kirim">
+      <button onClick={() => alert(`Data Terkirim!`)} className="p-1.5 bg-green-50 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/50 rounded-md transition" title="Kirim">
         <Send size={16} />
       </button>
     </div>
@@ -203,6 +201,7 @@ function ViewPenjualan() {
   const [hargaSatuan, setHargaSatuan] = useState(0);
   const [qty, setQty] = useState(1);
   const [isFetching, setIsFetching] = useState(true);
+  const [editId, setEditId] = useState<number | null>(null);
 
   const loadData = async () => {
     setIsFetching(true);
@@ -222,36 +221,53 @@ function ViewPenjualan() {
     setHargaSatuan(barang ? barang.harga : 0);
   };
 
+  const handleDelete = async (id: number) => {
+    if(!confirm("Hapus data penjualan ini?")) return;
+    setDataPenjualan(dataPenjualan.filter(item => item.id !== id));
+    await fetch(`/api/db?type=penjualan&id=${id}`, { method: 'DELETE' });
+  };
+
+  const handleEditClick = (item: any) => {
+    setEditId(item.id);
+    setSelectedBarangId(item.barang_id.toString());
+    setHargaSatuan(item.total / item.qty);
+    setQty(item.qty);
+    const form = document.getElementById('form-penjualan') as HTMLFormElement;
+    if(form) {
+      (form.elements.namedItem('tanggal') as HTMLInputElement).value = item.tanggal.split('T')[0];
+      (form.elements.namedItem('pembeli') as HTMLInputElement).value = item.pembeli;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
     const totalBiaya = hargaSatuan * qty;
-    
-    // --- TRIK OPTIMISTIC UI: LANGSUNG MASUKKAN KE LAYAR ---
     const barangTerpilih = dataBarang.find(b => b.id.toString() === selectedBarangId);
-    const newData = {
-      id: '...', // ID sementara
+
+    const payload: any = {
       tanggal: formData.get('tanggal'),
       pembeli: formData.get('pembeli'),
-      nama_barang: barangTerpilih ? barangTerpilih.nama : 'Unknown',
+      barang_id: Number(formData.get('barang_id')),
       qty: qty,
       total: totalBiaya
     };
-    setDataPenjualan([newData, ...dataPenjualan]); // UI langsung update instan!
+
+    if (editId) {
+      // Perbarui Tampilan Instan (Edit)
+      setDataPenjualan(dataPenjualan.map(item => item.id === editId ? { ...item, ...payload, nama_barang: barangTerpilih?.nama } : item));
+      await fetch('/api/db', { method: 'PUT', body: JSON.stringify({ type: 'penjualan', id: editId, ...payload }) });
+      setEditId(null);
+    } else {
+      // Perbarui Tampilan Instan (Tambah)
+      const newData = { id: '...', ...payload, nama_barang: barangTerpilih ? barangTerpilih.nama : 'Unknown' };
+      setDataPenjualan([newData, ...dataPenjualan]);
+      await fetch('/api/db', { method: 'POST', body: JSON.stringify({ type: 'penjualan', ...payload }) });
+      await loadData();
+    }
+    
     e.currentTarget.reset();
     setSelectedBarangId(""); setHargaSatuan(0); setQty(1);
-
-    // --- PROSES ASLI DI BACKGROUND ---
-    const payload = {
-      type: 'penjualan',
-      tanggal: newData.tanggal,
-      pembeli: newData.pembeli,
-      barang_id: Number(formData.get('barang_id')),
-      qty: newData.qty,
-      total: newData.total
-    };
-    await fetch('/api/db', { method: 'POST', body: JSON.stringify(payload) });
-    // Sengaja tidak loadData ulang agar tidak kedip.
   };
 
   return (
@@ -259,8 +275,8 @@ function ViewPenjualan() {
       <h1 className="text-2xl font-bold mb-8">Manajemen Penjualan</h1>
       <div className="flex flex-col lg:flex-row gap-6">
         <div className="w-full lg:w-1/3 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-          <h3 className="font-bold mb-6">Tambah Transaksi</h3>
-          <form onSubmit={handleSubmit} className="space-y-4 text-sm">
+          <h3 className="font-bold mb-6">{editId ? '⚙️ Edit Transaksi' : 'Tambah Transaksi'}</h3>
+          <form id="form-penjualan" onSubmit={handleSubmit} className="space-y-4 text-sm">
             <div><label className="block text-gray-500 mb-1">Tanggal</label><input type="date" name="tanggal" required className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" /></div>
             <div><label className="block text-gray-500 mb-1">Nama Pembeli</label><input type="text" name="pembeli" required placeholder="Masukkan nama" className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" /></div>
             <div>
@@ -275,9 +291,10 @@ function ViewPenjualan() {
               <div className="w-20"><label className="block text-gray-500 mb-1">Qty</label><input type="number" name="qty" required min="1" value={qty} onChange={(e) => setQty(parseInt(e.target.value) || 1)} className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" /></div>
             </div>
             <div><label className="block text-gray-500 mb-1">Total Biaya</label><input type="text" value={formatRp(hargaSatuan * qty)} className="w-full bg-[#e8f7f0] dark:bg-green-900/20 rounded-lg px-4 py-2.5 text-green-700 dark:text-green-400 font-semibold" readOnly /></div>
-            <button type="submit" className={`w-full mt-4 text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 bg-[#0c6b45] hover:bg-[#095536] transition`}>
-              <ShoppingCart size={16} /> Simpan Data
+            <button type="submit" className="w-full mt-4 text-white py-3 rounded-lg font-semibold flex items-center justify-center gap-2 bg-[#0c6b45] hover:bg-[#095536]">
+              <ShoppingCart size={16} /> {editId ? 'Simpan Perubahan' : 'Simpan Data'}
             </button>
+            {editId && <button type="button" onClick={() => { setEditId(null); (document.getElementById('form-penjualan') as HTMLFormElement).reset(); setSelectedBarangId(""); setHargaSatuan(0); setQty(1); }} className="w-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-2 rounded-lg font-medium text-xs">Batal</button>}
           </form>
         </div>
         <div className="w-full lg:w-2/3 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
@@ -285,10 +302,7 @@ function ViewPenjualan() {
           <div className="w-full overflow-x-auto">
             <table className="w-full text-left text-sm text-gray-500 dark:text-gray-400">
               <thead className="text-xs text-gray-400 uppercase border-b border-gray-100 dark:border-gray-700">
-                <tr>
-                  <th className="pb-3">TGL</th><th className="pb-3">PEMBELI</th><th className="pb-3">BARANG</th>
-                  <th className="pb-3">QTY</th><th className="pb-3">TOTAL</th><th className="pb-3 text-right">AKSI</th>
-                </tr>
+                <tr><th className="pb-3">TGL</th><th className="pb-3">PEMBELI</th><th className="pb-3">BARANG</th><th className="pb-3">QTY</th><th className="pb-3">TOTAL</th><th className="pb-3 text-right">AKSI</th></tr>
               </thead>
               <tbody>
                 {isFetching ? (
@@ -302,7 +316,7 @@ function ViewPenjualan() {
                       <td className="py-3 font-medium text-gray-800 dark:text-gray-200">{item.pembeli}</td>
                       <td className="py-3">{item.nama_barang}</td><td className="py-3">{item.qty}</td>
                       <td className="py-3 text-[#0c6b45] dark:text-green-400 font-semibold">{formatRp(item.total)}</td>
-                      <td className="py-3"><ActionButtons id={item.id} /></td>
+                      <td className="py-3"><ActionButtons id={item.id} onEdit={() => handleEditClick(item)} onDelete={() => handleDelete(item.id)} /></td>
                     </tr>
                   ))
                 )}
@@ -321,6 +335,7 @@ function ViewPenjualan() {
 function ViewBarang() {
   const [dataBarang, setDataBarang] = useState<any[]>([]);
   const [isFetching, setIsFetching] = useState(true);
+  const [editId, setEditId] = useState<number | null>(null);
 
   const loadData = async () => {
     setIsFetching(true);
@@ -331,22 +346,36 @@ function ViewBarang() {
 
   useEffect(() => { loadData(); }, []);
 
+  const handleDelete = async (id: number) => {
+    if(!confirm("Hapus item barang ini?")) return;
+    setDataBarang(dataBarang.filter(b => b.id !== id));
+    await fetch(`/api/db?type=barang&id=${id}`, { method: 'DELETE' });
+  };
+
+  const handleEditClick = (item: any) => {
+    setEditId(item.id);
+    const form = document.getElementById('form-barang') as HTMLFormElement;
+    if(form) {
+      (form.elements.namedItem('nama') as HTMLInputElement).value = item.nama;
+      (form.elements.namedItem('harga') as HTMLInputElement).value = item.harga;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    
-    // --- TRIK OPTIMISTIC UI ---
-    const newData = {
-      id: '...', // ID sementara
-      nama: formData.get('nama') as string,
-      harga: Number(formData.get('harga'))
-    };
-    setDataBarang([newData, ...dataBarang]); // Langsung update tabel
-    e.currentTarget.reset();
+    const payload = { nama: formData.get('nama') as string, harga: Number(formData.get('harga')) };
 
-    // --- PROSES ASLI BACKGROUND ---
-    const payload = { type: 'barang', nama: newData.nama, harga: newData.harga };
-    await fetch('/api/db', { method: 'POST', body: JSON.stringify(payload) });
+    if(editId) {
+      setDataBarang(dataBarang.map(b => b.id === editId ? { ...b, ...payload } : b));
+      await fetch('/api/db', { method: 'PUT', body: JSON.stringify({ type: 'barang', id: editId, ...payload }) });
+      setEditId(null);
+    } else {
+      setDataBarang([{ id: '...', ...payload }, ...dataBarang]);
+      await fetch('/api/db', { method: 'POST', body: JSON.stringify({ type: 'barang', ...payload }) });
+      await loadData();
+    }
+    e.currentTarget.reset();
   };
 
   return (
@@ -354,13 +383,14 @@ function ViewBarang() {
       <h1 className="text-2xl font-bold mb-8">Database Barang</h1>
       <div className="flex flex-col lg:flex-row gap-6">
         <div className="w-full lg:w-1/3 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-          <h3 className="font-bold mb-6">Tambah Item</h3>
-          <form onSubmit={handleSubmit} className="space-y-4 text-sm">
+          <h3 className="font-bold mb-6">{editId ? '⚙️ Edit Item' : 'Tambah Item'}</h3>
+          <form id="form-barang" onSubmit={handleSubmit} className="space-y-4 text-sm">
             <div><label className="block text-gray-500 mb-1">Nama Barang</label><input type="text" name="nama" required className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" /></div>
             <div><label className="block text-gray-500 mb-1">Harga (Rp)</label><input type="number" name="harga" required className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" /></div>
-            <button type="submit" className={`w-full mt-2 text-white py-3 rounded-lg font-semibold bg-[#0c6b45] hover:bg-[#095536] transition`}>
-              Tambah ke Database
+            <button type="submit" className="w-full mt-2 text-white py-3 rounded-lg font-semibold bg-[#0c6b45] hover:bg-[#095536]">
+              {editId ? 'Simpan Perubahan' : 'Tambah ke Database'}
             </button>
+            {editId && <button type="button" onClick={() => { setEditId(null); (document.getElementById('form-barang') as HTMLFormElement).reset(); }} className="w-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-2 rounded-lg font-medium text-xs">Batal</button>}
           </form>
         </div>
         <div className="w-full lg:w-2/3 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
@@ -381,7 +411,7 @@ function ViewBarang() {
                       <td className="py-3">{item.id === '...' ? '...' : `#${item.id}`}</td>
                       <td className="py-3 font-medium text-gray-800 dark:text-gray-200">{item.nama}</td>
                       <td className="py-3 text-[#0c6b45] dark:text-green-400 font-semibold">{formatRp(item.harga)}</td>
-                      <td className="py-3"><ActionButtons id={item.id} /></td>
+                      <td className="py-3"><ActionButtons id={item.id} onEdit={() => handleEditClick(item)} onDelete={() => handleDelete(item.id)} /></td>
                     </tr>
                   ))
                 )}
@@ -400,6 +430,7 @@ function ViewBarang() {
 function ViewKeuangan() {
   const [dataKeuangan, setDataKeuangan] = useState<any[]>([]);
   const [isFetching, setIsFetching] = useState(true);
+  const [editId, setEditId] = useState<number | null>(null);
 
   const loadData = async () => {
     setIsFetching(true);
@@ -410,23 +441,41 @@ function ViewKeuangan() {
 
   useEffect(() => { loadData(); }, []);
 
+  const handleDelete = async (id: number) => {
+    if(!confirm("Hapus catatan transaksi ini?")) return;
+    setDataKeuangan(dataKeuangan.filter(k => k.id !== id));
+    await fetch(`/api/db?type=keuangan&id=${id}`, { method: 'DELETE' });
+  };
+
+  const handleEditClick = (item: any) => {
+    setEditId(item.id);
+    const form = document.getElementById('form-keuangan') as HTMLFormElement;
+    if(form) {
+      (form.elements.namedItem('tipe') as HTMLSelectElement).value = item.tipe;
+      (form.elements.namedItem('nominal') as HTMLInputElement).value = item.nominal;
+      (form.elements.namedItem('keterangan') as HTMLInputElement).value = item.keterangan;
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
-    
-    // --- TRIK OPTIMISTIC UI ---
-    const newData = {
-      id: '...', // ID sementara
+    const payload = {
       tipe: formData.get('tipe') as string,
-      keterangan: formData.get('keterangan') as string,
-      nominal: Number(formData.get('nominal'))
+      nominal: Number(formData.get('nominal')),
+      keterangan: formData.get('keterangan') as string
     };
-    setDataKeuangan([newData, ...dataKeuangan]); // Langsung update tabel
-    e.currentTarget.reset();
 
-    // --- PROSES ASLI BACKGROUND ---
-    const payload = { type: 'keuangan', tipe: newData.tipe, nominal: newData.nominal, keterangan: newData.keterangan };
-    await fetch('/api/db', { method: 'POST', body: JSON.stringify(payload) });
+    if(editId) {
+      setDataKeuangan(dataKeuangan.map(k => k.id === editId ? { ...k, ...payload } : k));
+      await fetch('/api/db', { method: 'PUT', body: JSON.stringify({ type: 'keuangan', id: editId, ...payload }) });
+      setEditId(null);
+    } else {
+      setDataKeuangan([{ id: '...', ...payload }, ...dataKeuangan]);
+      await fetch('/api/db', { method: 'POST', body: JSON.stringify({ type: 'keuangan', ...payload }) });
+      await loadData();
+    }
+    e.currentTarget.reset();
   };
 
   return (
@@ -434,8 +483,8 @@ function ViewKeuangan() {
       <h1 className="text-2xl font-bold mb-8">Pencatatan Keuangan</h1>
       <div className="flex flex-col lg:flex-row gap-6">
         <div className="w-full lg:w-1/3 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
-          <h3 className="font-bold mb-6">Catat Transaksi</h3>
-          <form onSubmit={handleSubmit} className="space-y-4 text-sm">
+          <h3 className="font-bold mb-6">{editId ? '⚙️ Edit Transaksi' : 'Catat Transaksi'}</h3>
+          <form id="form-keuangan" onSubmit={handleSubmit} className="space-y-4 text-sm">
             <div>
               <label className="block text-gray-500 mb-1">Tipe</label>
               <select name="tipe" required className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5">
@@ -445,9 +494,10 @@ function ViewKeuangan() {
             </div>
             <div><label className="block text-gray-500 mb-1">Nominal (Rp)</label><input type="number" name="nominal" required className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" /></div>
             <div><label className="block text-gray-500 mb-1">Keterangan</label><input type="text" name="keterangan" required placeholder="Contoh: Beli alat" className="w-full bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg px-4 py-2.5" /></div>
-            <button type="submit" className={`w-full mt-2 text-white py-3 rounded-lg font-semibold bg-[#0c6b45] hover:bg-[#095536] transition`}>
-              Simpan Transaksi
+            <button type="submit" className="w-full mt-2 text-white py-3 rounded-lg font-semibold bg-[#0c6b45] hover:bg-[#095536]">
+              {editId ? 'Simpan Perubahan' : 'Simpan Transaksi'}
             </button>
+            {editId && <button type="button" onClick={() => { setEditId(null); (document.getElementById('form-keuangan') as HTMLFormElement).reset(); }} className="w-full bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 py-2 rounded-lg font-medium text-xs">Batal</button>}
           </form>
         </div>
         <div className="w-full lg:w-2/3 bg-white dark:bg-gray-800 p-6 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700">
@@ -468,7 +518,7 @@ function ViewKeuangan() {
                       <td className="py-3">{item.id === '...' ? '...' : `#${item.id}`}</td>
                       <td className="py-3"><span className={`px-2 py-1 rounded text-xs font-semibold ${item.tipe === 'Pengeluaran' ? 'bg-red-100 text-red-600 dark:bg-red-900/30' : 'bg-green-100 text-green-700 dark:bg-green-900/30'}`}>{item.tipe}</span></td>
                       <td className="py-3">{item.keterangan}</td><td className="py-3 font-semibold">{formatRp(item.nominal)}</td>
-                      <td className="py-3"><ActionButtons id={item.id} /></td>
+                      <td className="py-3"><ActionButtons id={item.id} onEdit={() => handleEditClick(item)} onDelete={() => handleDelete(item.id)} /></td>
                     </tr>
                   ))
                 )}
